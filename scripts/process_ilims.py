@@ -385,4 +385,3 @@ with pd.ExcelWriter(EXCEL_OUTPUT_PATH, engine=engine_name) as writer:
         cancelled_in_ordered.to_excel(writer, index=False, sheet_name="Cancelled")
 
 print(f"\n✅ Excel saved to: {EXCEL_OUTPUT_PATH}")
-``
