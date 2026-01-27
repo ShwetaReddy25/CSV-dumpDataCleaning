@@ -62,7 +62,7 @@ valid_payment_types = ["B2B", "B2C", "Other"]
 
 # Step 4: Merge ASM + REGION (Email Grouping File)
 asm_df = pd.read_excel("data/email grouping updated.xlsx")
-asm_df.columns = asm_df.columns.str.strip()
+asm_df.columns = asm_df.columns.astype(str).str.strip()
 asm_df.rename(columns={"Email - Id": "Order Created By", "ASM NAME": "ASM", "Region": "Region"}, inplace=True)
 asm_map = asm_df.drop_duplicates("Order Created By").set_index("Order Created By")[["ASM", "Region"]]
 
@@ -71,7 +71,7 @@ df = df.merge(asm_map, left_on="Order Created By", right_index=True, how="left")
 
 # Step 4.1: Fill missing ASM & Region from ILMS Data Grouping (Safe version)
 ilms_df = pd.read_excel("data/ilims data grouping (3).xlsx")
-ilms_df.columns = ilms_df.columns.str.strip()
+ilms_df.columns = ilms_df.columns.map(lambda c: str(c).strip())
 
 # Standardize doctor name
 if "Doctor Name" in ilms_df.columns:
