@@ -2,6 +2,7 @@ import pandas as pd
 import warnings
 from datetime import datetime
 import os
+import glob
 
 # Fix for SettingWithCopyWarning compatibility
 try:
@@ -18,11 +19,16 @@ year_input = 2025
 cutoff_date = datetime(year_input, month_input, 9, 23, 59, 59)
 
 # ---- IMPORTANT ----
-# The file name will be taken from the folder: data/daily_YYYYMMDD.csv
-input_file = "data/daily.csv"
+# Auto detect latest CSV in data folder
+csv_files = glob.glob("data/*.csv")
+if not csv_files:
+    raise FileNotFoundError("No CSV files found in data/ folder")
+
+latest_file = max(csv_files, key=os.path.getmtime)
+print("Using CSV file:", latest_file)
 
 # Step 1: Load main dataset
-df = pd.read_csv(input_file)
+df = pd.read_csv(latest_file)
 
 # Keep raw dump before any processing
 raw_dump_df = df.copy()
@@ -269,7 +275,7 @@ from pandas import ExcelWriter
 def format_dates(df, cols):
     for col in cols:
         if col in df.columns:
-            df[col] = pd.to_datetime(df[col], errors='coerce').dt.strftime("%d-%b-%Y")
+            df[col] = pd.to_datetime(df[col], errors="coerce").dt.strftime("%d-%b-%Y")
     return df
 
 ordered_final = format_dates(ordered_df[[
