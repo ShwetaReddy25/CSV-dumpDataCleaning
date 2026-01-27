@@ -1,4 +1,4 @@
-name: Run Python on CSV upload
+name: Process ILIMS CSV
 
 on:
   push:
@@ -6,22 +6,22 @@ on:
       - "data/*.csv"
 
 jobs:
-  process-csv:
+  run-python:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
+      - name: Checkout repo
         uses: actions/checkout@v4
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.10"
+          python-version: "3.11"
 
       - name: Install dependencies
         run: |
-          pip install pandas
+          pip install pandas openpyxl xlsxwriter
 
-      - name: Run Python script
+      - name: Run ILIMS processing
         run: |
-          python scripts/process_csv.py
+          python scripts/process_ilims.py
