@@ -3,33 +3,36 @@ name: Process CSV on Push
 on:
   push:
     paths:
-      - "incoming_csv/*.csv"
+      - 'incoming_csv/**'
+
+permissions:
+  contents: read
+  actions: read
 
 jobs:
-  process:
+  process_csv:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
+      - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: Set up Python
+      - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.10"
+          python-version: '3.11'
 
       - name: Install dependencies
         run: |
-          pip install pandas openpyxl xlsxwriter
+          python -m pip install --upgrade pip
+          pip install pandas xlsxwriter openpyxl
 
       - name: Run processing script
         run: |
-          python process_ilims.py
+          python scripts/process_ilims.py
 
-      - name: Commit output Excel
-        run: |
-          git config user.name "github-actions"
-          git config user.email "github-actions@github.com"
-          git add output/
-          git commit -m "Auto-update processed I-LIMS output" || echo "No changes to commit"
-          git push
+      - name: Upload output as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: processed-output
+          path: output/
