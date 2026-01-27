@@ -3,7 +3,7 @@ name: Process CSV on Push
 on:
   push:
     paths:
-      - "*.csv"
+      - "incoming_csv/*.csv"
 
 jobs:
   process:
