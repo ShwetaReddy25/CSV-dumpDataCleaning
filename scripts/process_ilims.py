@@ -376,4 +376,3 @@ with ExcelWriter(excel_output_path, engine='xlsxwriter') as writer:
         cancelled_in_ordered.to_excel(writer, index=False, sheet_name="Cancelled")
 
 print(f"\n✅ Excel saved to: {excel_output_path}")
-``
