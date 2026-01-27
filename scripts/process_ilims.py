@@ -22,7 +22,7 @@ cutoff_date = datetime(year_input, month_input, 9, 23, 59, 59)
 # ----------------------------
 # Step 1: Load main dataset
 # ----------------------------
-dump_path = "12 jan ilims dump.csv"
+dump_path = "data/daily.csv"
 df = pd.read_csv(dump_path)
 raw_dump_df = df.copy()
 
