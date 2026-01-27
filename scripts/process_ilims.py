@@ -3,7 +3,6 @@ import warnings
 from datetime import datetime
 
 import pandas as pd
-from pandas import ExcelWriter
 
 # ----------------------------
 # Warning handling (VS Code safe)
@@ -13,6 +12,14 @@ try:
     warnings.simplefilter(action="ignore", category=SettingWithCopyWarning)
 except Exception:
     warnings.simplefilter(action="ignore")
+
+# ============================
+# CONFIG: Update these paths for your machine
+# ============================
+CSV_DUMP_PATH = "data/daily.csv"  # e.g., "data/22 jan ilims dump.csv"
+EMAIL_GROUPING_XLSX = "data/email grouping updated.xlsx"
+ILIMS_GROUPING_XLSX = "data/ilims data grouping (3).xlsx"
+EXCEL_OUTPUT_PATH = "output/I-LIMS_Cleaned_Ordered_Accessioned_Dec2025.xlsx"
 
 # ============================
 # Step 0: Dynamic input for December
@@ -26,12 +33,8 @@ cutoff_date = datetime(year_input, month_input, 9, 23, 59, 59)
 # ============================
 # Step 1: Load main dataset
 # ============================
-# TODO: Update these paths to valid local files
-dump_path = "data/daily.csv"               # December dump file
-email_grouping_path = "data/email grouping updated.xlsx"
-ilims_grouping_path = "data/ilims data grouping (3).xlsx"
-
-df = pd.read_csv(dump_path)
+# Use utf-8-sig to handle BOM if present
+df = pd.read_csv(CSV_DUMP_PATH, encoding="utf-8-sig")
 
 # Keep raw dump before any processing
 raw_dump_df = df.copy()
@@ -45,6 +48,7 @@ intl_countries = [
     "Jordan", "Türkiye", "TÃ¼rkiye", "EGYPT", "EGPYT", "UAE"
 ]
 
+# NOTE: Keep logic as-is. Do not change field spellings.
 df.loc[(df["Business"] == "") & df["Country"].isin(intl_countries), "Business"] = "International"
 df.loc[(df["Business"] == "") & (df["Facility/Hospital Name"] == "Cancer institute W.I.A"), "Business"] = "Non-Service"
 df.loc[(df["Business"] == "") & (df["Order Created By"] == "indx2.bot@indx.ai"), "Business"] = "Non-Service"
@@ -81,24 +85,24 @@ valid_payment_types = ["B2B", "B2C", "Other"]
 # ============================
 # Step 4: Merge ASM + REGION (Email Grouping File)
 # ============================
-asm_df = pd.read_excel(email_grouping_path)
-# VS Code-friendly header strip (handles non-string headers too)
+asm_df = pd.read_excel(EMAIL_GROUPING_XLSX)
+# Ensure headers are strings and trimmed (prevents .str errors)
 asm_df.columns = asm_df.columns.astype(str).str.strip()
 
-# Direct rename as per your logic (no changes)
-asm_df.rename(
-    columns={"Email - Id": "Order Created By", "ASM NAME": "ASM", "Region": "Region"},
-    inplace=True
-)
+# You confirmed the column is exactly "Email - Id". Keep logic as-is.
+# This rename simply creates "Order Created By" from "Email - Id".
+asm_df.rename(columns={"Email - Id": "Order Created By", "ASM NAME": "ASM", "Region": "Region"}, inplace=True)
 
-# Build map and merge
+# Build an index map on "Order Created By"
 asm_map = asm_df.drop_duplicates("Order Created By").set_index("Order Created By")[["ASM", "Region"]]
-df = df.merge(asm_map, on="Order Created By", how="left")
+
+# IMPORTANT: Right side uses index; merge with right_index=True (prevents KeyError)
+df = df.merge(asm_map, left_on="Order Created By", right_index=True, how="left")
 
 # ============================
-# Step 4.1: Fill missing ASM & Region from ILMS Data Grouping
+# Step 4.1: Fill missing ASM & Region from ILMS Data Grouping (Safe version)
 # ============================
-ilms_df = pd.read_excel(ilims_grouping_path)
+ilms_df = pd.read_excel(ILIMS_GROUPING_XLSX)
 ilms_df.columns = ilms_df.columns.astype(str).str.strip()
 
 # Standardize doctor name
@@ -111,7 +115,7 @@ if "ASM" not in ilms_df.columns:
 if "Region" not in ilms_df.columns:
     ilms_df["Region"] = None
 
-# Merge safely (your logic preserved)
+# Merge safely
 df = df.merge(
     ilms_df[["Physician Full Name", "ASM", "Region"]],
     on="Physician Full Name",
@@ -162,7 +166,7 @@ today = datetime.now()
 start_of_month = datetime(year_input, month_input, 1)
 yesterday_end = today.replace(hour=23, minute=59, second=59, microsecond=0) - pd.Timedelta(days=1)
 
-# IMPORTANT: Use cleaned_df consistently (prevents boolean index misalignment)
+# Use cleaned_df consistently for mask (prevents boolean index misalignment)
 ordered_df = cleaned_df[
     (cleaned_df["Accession Status Clean"].isin(["Ordered", "Collected"])) &
     (cleaned_df["Order Date V2"] >= start_of_month) &
@@ -170,7 +174,7 @@ ordered_df = cleaned_df[
 ].drop_duplicates()
 
 # ============================
-# Step 8: Patients present in both ACCESSIONED & ORDERED
+# Step 8: Patients in both ACCESSIONED & ORDERED
 # ============================
 common_patients = set(accessioned_df["Patient Name"]) & set(ordered_df["Patient Name"])
 
@@ -356,14 +360,19 @@ cleaned_full_df = format_dates(df.copy(), [
     "Order Date V2", "Accession Timestamp V2", "Sample Collection Timestamp V2"
 ])
 
-excel_output_path = "output/I-LIMS_Cleaned_Ordered_Accessioned_Dec2025.xlsx"
-
-# Make sure target directory exists (safe if writing to nested paths)
-out_dir = os.path.dirname(excel_output_path)
+# Ensure output directory exists
+out_dir = os.path.dirname(EXCEL_OUTPUT_PATH)
 if out_dir:
     os.makedirs(out_dir, exist_ok=True)
 
-with ExcelWriter(excel_output_path, engine='xlsxwriter') as writer:
+# Try to use xlsxwriter if installed; fallback to default engine
+engine_name = "xlsxwriter"
+try:
+    import xlsxwriter  # noqa: F401
+except Exception:
+    engine_name = None  # let pandas pick default (usually openpyxl)
+
+with pd.ExcelWriter(EXCEL_OUTPUT_PATH, engine=engine_name) as writer:
     accessioned_final.to_excel(writer, index=False, sheet_name="Accessioned")
     ordered_final.to_excel(writer, index=False, sheet_name="Ordered")
     if not problem_case_final.empty:
@@ -375,4 +384,5 @@ with ExcelWriter(excel_output_path, engine='xlsxwriter') as writer:
     if not cancelled_in_ordered.empty:
         cancelled_in_ordered.to_excel(writer, index=False, sheet_name="Cancelled")
 
-print(f"\n✅ Excel saved to: {excel_output_path}")
+print(f"\n✅ Excel saved to: {EXCEL_OUTPUT_PATH}")
+``
