@@ -63,38 +63,30 @@ valid_payment_types = ["B2B", "B2C", "Other"]
 # Step 4: Merge ASM + REGION (Email Grouping File)
 asm_df = pd.read_excel("data/email grouping updated.xlsx")
 asm_df.columns = asm_df.columns.astype(str).str.strip()
+print("\nDEBUG → Columns in asm_df after strip:", asm_df.columns.tolist())
+
 asm_df.rename(columns={"Email - Id": "Order Created By", "ASM NAME": "ASM", "Region": "Region"}, inplace=True)
-asm_map = asm_df.drop_duplicates("Order Created By").set_index("Order Created By")[["ASM", "Region"]]
+# Expected column names (after strip)
+possible_email_cols = [
+    "Email - Id", "Email-Id", "Email Id", "Email", "email", "EMAIL", 
+    "EMAIL ID", "EMAIL-ID"
+]
 
-# ✅ Merge using right_index since asm_map uses index = "Order Created By"
-df = df.merge(asm_map, left_on="Order Created By", right_index=True, how="left")
+# Find actual column name present
+email_col = None
+for col in possible_email_cols:
+    if col in asm_df.columns:
+        email_col = col
+        break
 
-# Step 4.1: Fill missing ASM & Region from ILMS Data Grouping (Safe version)
-ilms_df = pd.read_excel("data/ilims data grouping (3).xlsx")
-ilms_df.columns = ilms_df.columns.map(lambda c: str(c).strip())
+if email_col is None:
+    raise KeyError(f"❌ ERROR: Could not find email column in ASM Excel file. "
+                   f"Columns found: {asm_df.columns.tolist()}")
 
-# Standardize doctor name
-if "Doctor Name" in ilms_df.columns:
-    ilms_df.rename(columns={"Doctor Name": "Physician Full Name"}, inplace=True)
-
-# Ensure ASM & Region columns exist
-if "ASM" not in ilms_df.columns:
-    ilms_df["ASM"] = None
-if "Region" not in ilms_df.columns:
-    ilms_df["Region"] = None
-
-# Merge safely
-df = df.merge(
-    ilms_df[["Physician Full Name", "ASM", "Region"]],
-    on="Physician Full Name",
-    how="left",
-    suffixes=("", "_ILMS")
-)
-
-# Prefer ASM/Region from ILMS if original is missing
-df["ASM"] = df["ASM"].fillna(df["ASM_ILMS"])
-df["Region"] = df["Region"].fillna(df["Region_ILMS"])
-df.drop(columns=["ASM_ILMS", "Region_ILMS"], inplace=True)
+# Now safe rename
+asm_df.rename(columns={email_col: "Order Created By", 
+                       "ASM NAME": "ASM", 
+                       "Region": "Region"}, inplace=True)
 
 # Step 5: Dates + Clean Titles
 df["Order Date V2"] = pd.to_datetime(df["Order Created Date"], dayfirst=True, errors="coerce")
