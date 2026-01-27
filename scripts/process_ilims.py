@@ -3,7 +3,7 @@ import warnings
 from datetime import datetime
 from pathlib import Path
 
-warnings.simplefilter(action='ignore', category=pd.errors.SettingWithCopyWarning)
+warnings.simplefilter(action='ignore', category=Warning)
 
 # -----------------------------
 # 1. INPUT & OUTPUT FOLDER PATHS
@@ -23,14 +23,9 @@ csv_files = list(incoming_folder.glob("*.csv"))
 if not csv_files:
     raise FileNotFoundError("No CSV file found in incoming_csv folder.")
 
-# sort by modified time
 latest_csv = max(csv_files, key=lambda f: f.stat().st_mtime)
 
 dump_path = latest_csv
-
-# -----------------------------
-# 3. RUN YOUR ORIGINAL CODE
-# -----------------------------
 
 # Step 0: Dynamic input for December
 month_input = 12
@@ -209,7 +204,7 @@ this_month_df = cleaned_df[
 ]
 prev_months_df = cleaned_df[
     ((cleaned_df["Order Date V2"].dt.month < month_input) |
-     (cleaned_df["Order Date V2"].dt.year < year_input))
+     (df["Order Date V2"].dt.year < year_input))
 ]
 
 repeat_patients = pd.merge(
