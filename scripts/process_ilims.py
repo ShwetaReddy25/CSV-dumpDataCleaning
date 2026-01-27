@@ -1,7 +1,9 @@
-import pandas as pd
+import os
 import warnings
 from datetime import datetime
-import os
+
+import pandas as pd
+from pandas import ExcelWriter
 
 # ----------------------------
 # Warning handling (VS Code safe)
@@ -12,24 +14,36 @@ try:
 except Exception:
     warnings.simplefilter(action="ignore")
 
+# ============================
 # Step 0: Dynamic input for December
+# ============================
 month_input = 12
 year_input = 2025
 
 # Fixed cutoff date → 09 Dec 2025, 23:59:59
 cutoff_date = datetime(year_input, month_input, 9, 23, 59, 59)
 
+# ============================
 # Step 1: Load main dataset
-dump_path = "data/daily.csv"  # December dump file
+# ============================
+# TODO: Update these paths to valid local files
+dump_path = "data/daily.csv"               # December dump file
+email_grouping_path = "data/email grouping updated.xlsx"
+ilims_grouping_path = "data/ilims data grouping (3).xlsx"
+
 df = pd.read_csv(dump_path)
 
 # Keep raw dump before any processing
 raw_dump_df = df.copy()
 
+# ============================
 # Step 2: Create BUSINESS column
+# ============================
 df["Business"] = ""
-intl_countries = ["Egypt", "Turkey", "Nepal", "Malyasia", "Uzbekistan", "Malaysia",
-                  "Jordan", "Türkiye", "TÃ¼rkiye", "EGYPT", "EGPYT", "UAE"]
+intl_countries = [
+    "Egypt", "Turkey", "Nepal", "Malyasia", "Uzbekistan", "Malaysia",
+    "Jordan", "Türkiye", "TÃ¼rkiye", "EGYPT", "EGPYT", "UAE"
+]
 
 df.loc[(df["Business"] == "") & df["Country"].isin(intl_countries), "Business"] = "International"
 df.loc[(df["Business"] == "") & (df["Facility/Hospital Name"] == "Cancer institute W.I.A"), "Business"] = "Non-Service"
@@ -44,14 +58,18 @@ df.loc[(df["Business"] == "") & (df["Payment Status"] == "FOC") & df["Order Crea
 df.loc[(df["Business"] == "") & (df["Payment Status"] == "FOC") & (~df["Order Created By"].isin(foc_users)) & (df["Order Created By"] != "indx2.bot@indx.ai"), "Business"] = "Service FOC"
 
 # If Sample Category contains "Service" → Business = Service
-df.loc[(df["Business"] == "") & (
-    df["Sample Category"].astype(str).str.contains("Service", case=False, na=False)
-), "Business"] = "Service"
+df.loc[
+    (df["Business"] == "") &
+    (df["Sample Category"].astype(str).str.contains("Service", case=False, na=False)),
+    "Business"
+] = "Service"
 
 # Remaining blanks → Non-Service
 df.loc[df["Business"] == "", "Business"] = "Non-Service"
 
+# ============================
 # Step 3: PAYMENT_TYPE
+# ============================
 df["Payment Type"] = ""
 df.loc[df["Order Type"] == "MOU", "Payment Type"] = "B2B"
 df.loc[df["Order Type"] == "Retail", "Payment Type"] = "B2C"
@@ -60,56 +78,73 @@ df.loc[df["Payment Status"] == "FOC", "Payment Type"] = "FOC"
 df.loc[df["Order Type"].astype(str).str.contains("Research", na=False), "Payment Type"] = "Other"
 valid_payment_types = ["B2B", "B2C", "Other"]
 
+# ============================
 # Step 4: Merge ASM + REGION (Email Grouping File)
-asm_df = pd.read_excel("data/email grouping updated.xlsx")
+# ============================
+asm_df = pd.read_excel(email_grouping_path)
+# VS Code-friendly header strip (handles non-string headers too)
 asm_df.columns = asm_df.columns.astype(str).str.strip()
-print("\nDEBUG → Columns in asm_df after strip:", asm_df.columns.tolist())
 
-# Expected column names (after strip)
-possible_email_cols = [
-    "Email - Id", "Email-Id", "Email Id", "Email", "email", "EMAIL", 
-    "EMAIL ID", "EMAIL-ID"
-]
-
-# Find actual column name present
-email_col = None
-for col in possible_email_cols:
-    if col in asm_df.columns:
-        email_col = col
-        break
-
-if email_col is None:
-    raise KeyError(
-        f"❌ ERROR: Could not find email column in ASM Excel file. "
-        f"Columns found: {asm_df.columns.tolist()}"
-    )
-
-# ✅ Single, safe rename (creates 'Order Created By' no matter which variant exists)
+# Direct rename as per your logic (no changes)
 asm_df.rename(
-    columns={
-        email_col: "Order Created By",
-        "ASM NAME": "ASM",    # keep your original mapping
-        "Region": "Region"    # idempotent, but harmless
-    },
+    columns={"Email - Id": "Order Created By", "ASM NAME": "ASM", "Region": "Region"},
     inplace=True
 )
 
+# Build map and merge
+asm_map = asm_df.drop_duplicates("Order Created By").set_index("Order Created By")[["ASM", "Region"]]
+df = df.merge(asm_map, on="Order Created By", how="left")
+
+# ============================
+# Step 4.1: Fill missing ASM & Region from ILMS Data Grouping
+# ============================
+ilms_df = pd.read_excel(ilims_grouping_path)
+ilms_df.columns = ilms_df.columns.astype(str).str.strip()
+
+# Standardize doctor name
+if "Doctor Name" in ilms_df.columns:
+    ilms_df.rename(columns={"Doctor Name": "Physician Full Name"}, inplace=True)
+
+# Ensure ASM & Region columns exist
+if "ASM" not in ilms_df.columns:
+    ilms_df["ASM"] = None
+if "Region" not in ilms_df.columns:
+    ilms_df["Region"] = None
+
+# Merge safely (your logic preserved)
+df = df.merge(
+    ilms_df[["Physician Full Name", "ASM", "Region"]],
+    on="Physician Full Name",
+    how="left",
+    suffixes=("", "_ILMS")
+)
+
+# Prefer ASM/Region from ILMS if original is missing
+df["ASM"] = df["ASM"].fillna(df["ASM_ILMS"])
+df["Region"] = df["Region"].fillna(df["Region_ILMS"])
+df.drop(columns=["ASM_ILMS", "Region_ILMS"], inplace=True)
+
+# ============================
 # Step 5: Dates + Clean Titles
+# ============================
 df["Order Date V2"] = pd.to_datetime(df["Order Created Date"], dayfirst=True, errors="coerce")
 df["Accession Timestamp V2"] = pd.to_datetime(df["Accession Timestamp"], dayfirst=True, errors="coerce")
 df["Sample Collection Timestamp V2"] = pd.to_datetime(df["Sample Collection TimeStamp"], dayfirst=True, errors="coerce")
 df["Accession Status Clean"] = df["Accession Status"].astype(str).str.strip().str.title()
 df["Business Clean"] = df["Business"].astype(str).str.strip().str.title()
 
+# ============================
 # Step 6: Cleaned Sheet
+# ============================
 cleaned_df = df[
     (df["Order Date V2"] <= cutoff_date) &
     (df["Business Clean"] == "Service") &
     (df["Payment Type"].isin(valid_payment_types))
 ].drop_duplicates()
 
-# --- Step 7: Accessioned & Ordered ---
-
+# ============================
+# Step 7: Accessioned & Ordered
+# ============================
 # Accessioned logic
 accessioned_df = cleaned_df[
     (cleaned_df["Accession Status Clean"] == "Accessioned") &
@@ -127,14 +162,16 @@ today = datetime.now()
 start_of_month = datetime(year_input, month_input, 1)
 yesterday_end = today.replace(hour=23, minute=59, second=59, microsecond=0) - pd.Timedelta(days=1)
 
-# ✅ Use cleaned_df consistently for the whole mask (prevents index misalignment)
+# IMPORTANT: Use cleaned_df consistently (prevents boolean index misalignment)
 ordered_df = cleaned_df[
     (cleaned_df["Accession Status Clean"].isin(["Ordered", "Collected"])) &
     (cleaned_df["Order Date V2"] >= start_of_month) &
     (cleaned_df["Order Date V2"] <= yesterday_end)
 ].drop_duplicates()
 
-# === Step 8: Patients present in both ACCESSIONED & ORDERED ===
+# ============================
+# Step 8: Patients present in both ACCESSIONED & ORDERED
+# ============================
 common_patients = set(accessioned_df["Patient Name"]) & set(ordered_df["Patient Name"])
 
 matches = []
@@ -155,7 +192,9 @@ if matches:
 else:
     print("\n✅ No matching patients found between ACCESSIONED & ORDERED.")
 
-# === Step 9: Duplicates ===
+# ============================
+# Step 9: Duplicates
+# ============================
 ordered_dupes = (
     ordered_df.groupby("Patient Name")
     .filter(lambda x: len(x) > 1)
@@ -182,7 +221,9 @@ if not accessioned_dupes.empty:
 else:
     print("\n✅ No duplicate Patient Name found in ACCESSIONED.")
 
-# === Step 10: Cancelled patients (manual list placeholder) ===
+# ============================
+# Step 10: Cancelled patients (manual list placeholder)
+# ============================
 cancelled_patients = []
 cancelled_in_ordered = ordered_df[
     ordered_df["Patient Name"].isin(cancelled_patients)
@@ -194,7 +235,9 @@ if not cancelled_in_ordered.empty:
 else:
     print("\n✅ No manually cancelled patients found in ORDERED.")
 
-# === Step 10.1: Repeat patients from previous months ===
+# ============================
+# Step 10.1: Repeat patients from previous months
+# ============================
 this_month_df = cleaned_df[
     (cleaned_df["Order Date V2"].dt.month == month_input) &
     (cleaned_df["Order Date V2"].dt.year == year_input)
@@ -238,7 +281,9 @@ if not repeat_patients.empty:
     else:
         print("\n✅ No repeat patients from previous months found in ORDERED.")
 
-# --- Step 11: Problem Case & On-Hold ---
+# ============================
+# Step 11: Problem Case & On-Hold
+# ============================
 problem_case_df = cleaned_df[
     (cleaned_df["Accession Status Clean"] == "Problem Case") &
     (cleaned_df["Order Date V2"].dt.month == month_input) &
@@ -253,7 +298,9 @@ onhold_df = cleaned_df[
     (cleaned_df["Order Date V2"] <= cutoff_date)
 ].drop_duplicates()
 
-# === Step 12: Summary ===
+# ============================
+# Step 12: Summary
+# ============================
 accessioned_total = accessioned_df['Total Payable Amount'].sum()
 ordered_total = ordered_df['Total Payable Amount'].sum()
 matched_total = results_df['Total Payable Amount'].sum() if 'results_df' in locals() and not results_df.empty else 0
@@ -271,14 +318,15 @@ print(f"   - Duplicate Patient Name   : ₹{dupes_total:,.2f}")
 print(f"   ---------------------------------------------")
 print(f"✅ Ordered Total (adjusted)   : ₹{adjusted_ordered_total:,.2f}")
 
-# === Step 13: Export Excel ===
-from pandas import ExcelWriter
-
-def format_dates(df, cols):
+# ============================
+# Step 13: Export Excel
+# ============================
+def format_dates(df_in, cols):
+    df_local = df_in.copy()
     for col in cols:
-        if col in df.columns:
-            df[col] = pd.to_datetime(df[col], errors='coerce').dt.strftime("%d-%b-%Y")
-    return df
+        if col in df_local.columns:
+            df_local[col] = pd.to_datetime(df_local[col], errors='coerce').dt.strftime("%d-%b-%Y")
+    return df_local
 
 ordered_final = format_dates(ordered_df[[
     "Order Date V2", "Accession Status", "Order Number", "Patient Name",
@@ -310,8 +358,10 @@ cleaned_full_df = format_dates(df.copy(), [
 
 excel_output_path = "output/I-LIMS_Cleaned_Ordered_Accessioned_Dec2025.xlsx"
 
-# ✅ Ensure output directory exists
-os.makedirs(os.path.dirname(excel_output_path), exist_ok=True)
+# Make sure target directory exists (safe if writing to nested paths)
+out_dir = os.path.dirname(excel_output_path)
+if out_dir:
+    os.makedirs(out_dir, exist_ok=True)
 
 with ExcelWriter(excel_output_path, engine='xlsxwriter') as writer:
     accessioned_final.to_excel(writer, index=False, sheet_name="Accessioned")
@@ -324,3 +374,6 @@ with ExcelWriter(excel_output_path, engine='xlsxwriter') as writer:
     cleaned_full_df.to_excel(writer, index=False, sheet_name="Cleaned Sheet")
     if not cancelled_in_ordered.empty:
         cancelled_in_ordered.to_excel(writer, index=False, sheet_name="Cancelled")
+
+print(f"\n✅ Excel saved to: {excel_output_path}")
+``
