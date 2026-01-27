@@ -2,10 +2,14 @@ import pandas as pd
 import warnings
 from datetime import datetime
 
-try: 
- from pandas.errors import SettingWithCopyWarning warnings.simplefilter(action="ignore", category=SettingWithCopyWarning) 
-except Exception: 
- warnings.simplefilter(action="ignore")
+# ----------------------------
+# Warning handling (VS Code safe)
+# ----------------------------
+try:
+    from pandas.errors import SettingWithCopyWarning
+    warnings.simplefilter(action="ignore", category=SettingWithCopyWarning)
+except Exception:
+    warnings.simplefilter(action="ignore")
 
 # Step 0: Dynamic input for December
 month_input = 12
