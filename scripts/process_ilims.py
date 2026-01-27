@@ -21,7 +21,7 @@ cutoff_date = datetime(year_input, month_input, 9, 23, 59, 59)
 # ----------------------------
 # Step 1: Load main dataset
 # ----------------------------
-dump_path = "data\daily.csv"
+dump_path = "data/daily.csv"
 df = pd.read_csv(dump_path)
 raw_dump_df = df.copy()
 
@@ -83,7 +83,7 @@ valid_payment_types = ["B2B", "B2C", "Other"]
 # ----------------------------
 # Step 4: Merge ASM + REGION (Email Grouping)
 # ----------------------------
-asm_df = pd.read_excel("data\email grouping updated.xlsx")
+asm_df = pd.read_excel("data/email grouping updated.xlsx")
 
 # ⬇️ FIX: force column names to string before .str
 asm_df.columns = asm_df.columns.map(str).str.strip()
@@ -99,7 +99,7 @@ df = df.merge(asm_map, on="Order Created By", how="left")
 # ----------------------------
 # Step 4.1: ILIMS grouping fallback
 # ----------------------------
-ilms_df = pd.read_excel("data\ilims data grouping (3).xlsx")
+ilms_df = pd.read_excel("data/ilims data grouping (3).xlsx")
 
 # ⬇️ FIX: force column names to string before .str
 ilms_df.columns = ilms_df.columns.map(str).str.strip()
@@ -232,7 +232,7 @@ cleaned_full_df = format_dates(
     ["Order Date V2", "Accession Timestamp V2", "Sample Collection Timestamp V2"]
 )
 
-output_file = "I-LIMS_Cleaned_Ordered_Accessioned_Dec2025.xlsx"
+output_file = "output/I-LIMS_Cleaned_Ordered_Accessioned_Dec2025.xlsx"
 
 with ExcelWriter(output_file, engine="xlsxwriter") as writer:
     accessioned_final.to_excel(writer, index=False, sheet_name="Accessioned")
