@@ -86,7 +86,7 @@ valid_payment_types = ["B2B", "B2C", "Other", "FOC"]
 # ----------------------------
 
 # Step 4: Merge ASM + REGION (Email Grouping)
-asm_df = pd.read_excel("email grouping updated.xlsx")
+asm_df = pd.read_excel("data/email grouping updated.xlsx")
 asm_df.columns = asm_df.columns.map(lambda x: str(x).strip())
 
 # Adjust mapping based on actual column names in your file
