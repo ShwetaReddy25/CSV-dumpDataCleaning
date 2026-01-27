@@ -8,7 +8,7 @@ from datetime import datetime
 try:
     from pandas.errors import SettingWithCopyWarning
     warnings.simplefilter(action="ignore", category=SettingWithCopyWarning)
-except ImportError:
+except Exception:
     warnings.simplefilter(action="ignore")
 
 # ----------------------------
@@ -16,13 +16,12 @@ except ImportError:
 # ----------------------------
 month_input = 12
 year_input = 2025
-
 cutoff_date = datetime(year_input, month_input, 9, 23, 59, 59)
 
 # ----------------------------
 # Step 1: Load main dataset
 # ----------------------------
-dump_path = "data/daily.csv"
+dump_path = "data\daily.csv"
 df = pd.read_csv(dump_path)
 raw_dump_df = df.copy()
 
@@ -84,8 +83,11 @@ valid_payment_types = ["B2B", "B2C", "Other"]
 # ----------------------------
 # Step 4: Merge ASM + REGION (Email Grouping)
 # ----------------------------
-asm_df = pd.read_excel("data/email grouping updated.xlsx")
-asm_df.columns = asm_df.columns.str.strip()
+asm_df = pd.read_excel("data\email grouping updated.xlsx")
+
+# ⬇️ FIX: force column names to string before .str
+asm_df.columns = asm_df.columns.map(str).str.strip()
+
 asm_df.rename(
     columns={"Email - Id": "Order Created By", "ASM NAME": "ASM", "Region": "Region"},
     inplace=True
@@ -97,8 +99,10 @@ df = df.merge(asm_map, on="Order Created By", how="left")
 # ----------------------------
 # Step 4.1: ILIMS grouping fallback
 # ----------------------------
-ilms_df = pd.read_excel("data/ilims data grouping (3).xlsx")
-ilms_df.columns = ilms_df.columns.str.strip()
+ilms_df = pd.read_excel("data\ilims data grouping (3).xlsx")
+
+# ⬇️ FIX: force column names to string before .str
+ilms_df.columns = ilms_df.columns.map(str).str.strip()
 
 if "Doctor Name" in ilms_df.columns:
     ilms_df.rename(columns={"Doctor Name": "Physician Full Name"}, inplace=True)
@@ -219,8 +223,14 @@ def format_dates(df, cols):
     return df
 
 ordered_final = format_dates(ordered_df, ["Order Date V2"])
-accessioned_final = format_dates(accessioned_df.rename(columns={"Final Date": "Accession Date"}), ["Accession Date"])
-cleaned_full_df = format_dates(df.copy(), ["Order Date V2", "Accession Timestamp V2", "Sample Collection Timestamp V2"])
+accessioned_final = format_dates(
+    accessioned_df.rename(columns={"Final Date": "Accession Date"}),
+    ["Accession Date"]
+)
+cleaned_full_df = format_dates(
+    df.copy(),
+    ["Order Date V2", "Accession Timestamp V2", "Sample Collection Timestamp V2"]
+)
 
 output_file = "I-LIMS_Cleaned_Ordered_Accessioned_Dec2025.xlsx"
 
