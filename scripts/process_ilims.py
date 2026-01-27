@@ -50,7 +50,7 @@ asm_df = pd.read_excel("data/email grouping updated.xlsx", engine="openpyxl")
 asm_df.columns = asm_df.columns.astype(str).str.strip()
 
 # AUTO FIND EMAIL COLUMN
-possible_email_cols = [c for c in asm_df.columns if "email" in c.lower()]
+possible_email_cols = [c for c in asm_df.columns if "Email - Id" in c.lower()]
 if len(possible_email_cols) == 0:
     raise Exception("Email column not found in ASM Excel file. Please check column names.")
 
