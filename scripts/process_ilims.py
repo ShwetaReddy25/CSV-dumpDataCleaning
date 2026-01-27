@@ -1,9 +1,4 @@
-Got it — thanks for pointing that out. Here’s the **entire corrected script in one piece** (no breaks, no half code). I’ve kept all spellings exactly as they were, only fixed the **core logic issues** (payment type filtering, cutoff date consistency, export section completion).  
-
----
-
-```python
-import pandas as pd
+ import pandas as pd
 import warnings
 from datetime import datetime
 
