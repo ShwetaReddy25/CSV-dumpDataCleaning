@@ -65,7 +65,6 @@ asm_df = pd.read_excel("data/email grouping updated.xlsx")
 asm_df.columns = asm_df.columns.astype(str).str.strip()
 print("\nDEBUG → Columns in asm_df after strip:", asm_df.columns.tolist())
 
-asm_df.rename(columns={"Email - Id": "Order Created By", "ASM NAME": "ASM", "Region": "Region"}, inplace=True)
 # Expected column names (after strip)
 possible_email_cols = [
     "Email - Id", "Email-Id", "Email Id", "Email", "email", "EMAIL", 
@@ -80,13 +79,20 @@ for col in possible_email_cols:
         break
 
 if email_col is None:
-    raise KeyError(f"❌ ERROR: Could not find email column in ASM Excel file. "
-                   f"Columns found: {asm_df.columns.tolist()}")
+    raise KeyError(
+        f"❌ ERROR: Could not find email column in ASM Excel file. "
+        f"Columns found: {asm_df.columns.tolist()}"
+    )
 
-# Now safe rename
-asm_df.rename(columns={email_col: "Order Created By", 
-                       "ASM NAME": "ASM", 
-                       "Region": "Region"}, inplace=True)
+# ✅ Single, safe rename (creates 'Order Created By' no matter which variant exists)
+asm_df.rename(
+    columns={
+        email_col: "Order Created By",
+        "ASM NAME": "ASM",    # keep your original mapping
+        "Region": "Region"    # idempotent, but harmless
+    },
+    inplace=True
+)
 
 # Step 5: Dates + Clean Titles
 df["Order Date V2"] = pd.to_datetime(df["Order Created Date"], dayfirst=True, errors="coerce")
