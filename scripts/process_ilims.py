@@ -85,56 +85,49 @@ valid_payment_types = ["B2B", "B2C", "Other", "FOC"]
 # Step 4: Merge ASM + REGION (Email Grouping)
 # ----------------------------
 
-# Step 4: Merge ASM + REGION (Email Grouping)
-asm_df = pd.read_excel("data/email grouping updated.xlsx")
-asm_df.columns = asm_df.columns.map(lambda x: str(x).strip())
-
-# Adjust mapping based on actual column names in your file
-rename_map = {
-    "Email - Id": "Order Created By",
-    "ASM NAME": "ASM",
-    "Region": "Region"
-}
-asm_df.rename(columns={k: v for k, v in rename_map.items() if k in asm_df.columns}, inplace=True)
-
-if "Order Created By" not in asm_df.columns:
-    raise ValueError(f"Expected 'Order Created By' column not found. Available columns: {asm_df.columns.tolist()}")
-
+asm_df = pd.read_excel("/content/email grouping updated.xlsx")
+asm_df.columns = asm_df.columns.str.strip()
+asm_df.rename(columns={"Email - Id": "Order Created By", "ASM NAME": "ASM", "Region": "Region"}, inplace=True)
 asm_map = asm_df.drop_duplicates("Order Created By").set_index("Order Created By")[["ASM", "Region"]]
 df = df.merge(asm_map, on="Order Created By", how="left")
-
-# ----------------------------
-# Step 4.1: ILIMS grouping fallback
-# ----------------------------
-ilms_df = pd.read_excel("data/ilims data grouping (3).xlsx")
-ilms_df.columns = ilms_df.columns.map(lambda x: str(x).strip())
-
+ 
+# Step 4.1: Fill missing ASM & Region from ILMS Data Grouping (Safe version)
+ilms_df = pd.read_excel("/content/ilims data grouping (3).xlsx")
+ilms_df.columns = ilms_df.columns.str.strip()
+ 
+# Standardize doctor name
 if "Doctor Name" in ilms_df.columns:
     ilms_df.rename(columns={"Doctor Name": "Physician Full Name"}, inplace=True)
-
+ 
+# Ensure ASM & Region columns exist
 if "ASM" not in ilms_df.columns:
     ilms_df["ASM"] = None
 if "Region" not in ilms_df.columns:
     ilms_df["Region"] = None
-
+ 
+# Merge safely
 df = df.merge(
     ilms_df[["Physician Full Name", "ASM", "Region"]],
     on="Physician Full Name",
     how="left",
     suffixes=("", "_ILMS")
 )
-
+ 
+# Prefer ASM/Region from ILMS if original is missing
 df["ASM"] = df["ASM"].fillna(df["ASM_ILMS"])
 df["Region"] = df["Region"].fillna(df["Region_ILMS"])
 df.drop(columns=["ASM_ILMS", "Region_ILMS"], inplace=True)
 
+
 # ----------------------------
 # Step 5: Dates & cleaning
 # ----------------------------
+
+ 
+# Step 5: Dates + Clean Titles
 df["Order Date V2"] = pd.to_datetime(df["Order Created Date"], dayfirst=True, errors="coerce")
 df["Accession Timestamp V2"] = pd.to_datetime(df["Accession Timestamp"], dayfirst=True, errors="coerce")
 df["Sample Collection Timestamp V2"] = pd.to_datetime(df["Sample Collection TimeStamp"], dayfirst=True, errors="coerce")
-
 df["Accession Status Clean"] = df["Accession Status"].astype(str).str.strip().str.title()
 df["Business Clean"] = df["Business"].astype(str).str.strip().str.title()
 
