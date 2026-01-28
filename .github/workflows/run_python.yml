@@ -26,6 +26,20 @@ jobs:
         run: |
           python scripts/process_ilims.py
 
+      - name: Rename output file with current date
+        run: |
+          DATE=$(date +'%Y-%m-%d')
+          mv output/ilims-output.xlsx output/ilims-output-$DATE.xlsx
+
+      - name: Commit output file to repository
+        run: |
+          git config --global user.name "github-actions"
+          git config --global user.email "github-actions@github.com"
+
+          git add output/
+          git commit -m "Add ILIMS output ($(date +'%Y-%m-%d'))" || echo "No changes to commit"
+          git push
+
       - name: Upload output as artifact
         uses: actions/upload-artifact@v4
         with:
