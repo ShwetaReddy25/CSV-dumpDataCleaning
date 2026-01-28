@@ -6,7 +6,7 @@ on:
       - 'data/*.csv'
 
 permissions:
-  contents: write   
+  contents: write
 
 jobs:
   process_csv:
@@ -40,7 +40,7 @@ jobs:
           git config --global user.email "github-actions@github.com"
 
           git add output/
-          git commit -m "Add ILIMS output ($(date +'%Y-%m-%d'))" || echo "No changes"
+          git commit -m "Add ILIMS output ($(date +'%Y-%m-%d'))" || echo "No changes to commit"
           git push
 
       - name: Upload output as artifact
@@ -48,3 +48,11 @@ jobs:
         with:
           name: ilims-output
           path: output/
+
+      - name: Delete processed CSV files
+        run: |
+          rm -f data/*.csv
+
+          git add data/
+          git commit -m "Remove processed CSV files" || echo "No CSV files to delete"
+          git push
