@@ -5,6 +5,9 @@ on:
     paths:
       - 'data/*.csv'
 
+permissions:
+  contents: write   
+
 jobs:
   process_csv:
     runs-on: ubuntu-latest
@@ -37,7 +40,7 @@ jobs:
           git config --global user.email "github-actions@github.com"
 
           git add output/
-          git commit -m "Add ILIMS output ($(date +'%Y-%m-%d'))" || echo "No changes to commit"
+          git commit -m "Add ILIMS output ($(date +'%Y-%m-%d'))" || echo "No changes"
           git push
 
       - name: Upload output as artifact
