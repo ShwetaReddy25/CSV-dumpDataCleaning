@@ -19,7 +19,7 @@ except Exception:
 CSV_DUMP_PATH = "data/daily.csv"  # e.g., "data/22 jan ilims dump.csv"
 EMAIL_GROUPING_XLSX = "data/email grouping updated.xlsx"
 ILIMS_GROUPING_XLSX = "data/ilims data grouping (3).xlsx"
-EXCEL_OUTPUT_PATH = "output/I-LIMS_Cleaned_Ordered_Accessioned_Dec2025.xlsx"
+EXCEL_OUTPUT_PATH = "output/ilims-output.xlsx"
 
 # ============================
 # Step 0: Dynamic input for December
